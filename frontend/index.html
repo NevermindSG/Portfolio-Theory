@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Portfolio Correlation Heatmap</title>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+</head>
+<body>
+    <h1>Portfolio Correlation Heatmap</h1>
+
+    <div id="heatmap" style="width:900px;height:700px;"></div>
+
+    <script>
+        async function loadCorrelation() {
+            const response = await fetch("http://127.0.0.1:8000/correlation");
+            const data = await response.json();
+
+            const assets = data.assets;
+            const corr = data.correlation;
+
+            const zValues = assets.map(rowTicker =>
+                assets.map(colTicker => corr[rowTicker][colTicker])
+            );
+
+            const trace = {
+                x: assets,
+                y: assets,
+                z: zValues,
+                type: "heatmap",
+                zmin: -1,
+                zmax: 1
+            };
+
+            const layout = {
+                title: "Korrelationsmatrix",
+                xaxis: { title: "Assets" },
+                yaxis: { title: "Assets" }
+            };
+
+            Plotly.newPlot("heatmap", [trace], layout);
+        }
+
+        loadCorrelation();
+    </script>
+</body>
+</html>

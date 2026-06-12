@@ -9,22 +9,42 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 
 def load_ticker(ticker):
     path = f"{CACHE_DIR}/{ticker}.csv"
-    
-    if os.path.exists(path):
-        return pd.read_csv(path, index_col=0, parse_dates=True)
 
-    df = yf.download(ticker, period="5y")["Close"]
-    df.to_csv(path)
-    return df
+    if os.path.exists(path):
+        df = pd.read_csv(path, index_col=0, parse_dates=True)
+        return df[ticker]
+
+    df = yf.download(
+        ticker,
+        period="5y",
+        interval="1d",
+        auto_adjust=True,
+        progress=False
+    )
+
+    if df.empty:
+        raise ValueError(f"Keine Daten für {ticker}")
+
+    close = df["Close"]
+    close.name = ticker
+
+    close.to_csv(path, header=True)
+
+    return close
 
 
 def get_prices(tickers):
-    data = {}
+    series_list = []
 
-    for t in tickers:
+    for ticker in tickers:
         try:
-            data[t] = load_ticker(t)
-        except:
-            pass
+            s = load_ticker(ticker)
+            series_list.append(s)
+        except Exception as e:
+            print(f"Fehler bei {ticker}: {e}")
 
-    return pd.DataFrame(data).dropna()
+    if not series_list:
+        raise ValueError("Keine Kursdaten geladen")
+
+    prices = pd.concat(series_list, axis=1)
+    return prices.dropna()

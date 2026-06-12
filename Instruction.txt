@@ -1,0 +1,14 @@
+#IDEE (Kernpipeline)
+# &P500 Liste
+ #      ↓
+#Ticker auswählen
+ #      ↓
+#Kurse aus Cache laden
+ #      ↓
+#Returns berechnen
+  #     ↓
+#Risiko berechnen
+ #      ↓
+#Korrelation berechnen
+ #      ↓
+#JSON zurückgeben
