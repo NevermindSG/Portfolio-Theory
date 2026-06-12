@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from backend.data_cache import get_prices
 from backend.analysis import (
     calculate_returns,
@@ -17,8 +16,10 @@ from backend.analysis import (
 )
 
 from backend.assets import get_sp500_tickers
+from backend.assets import get_sp500_tickers, get_assets
 
 app = FastAPI()
+
 
 
 
@@ -34,6 +35,10 @@ app.add_middleware(
 @app.get("/")
 def home():
     return {"status": "Portfolio Engine läuft"}
+
+@app.get("/assets")
+def assets():
+    return {"assets": get_assets()}
 
 
 @app.get("/analysis")
@@ -59,19 +64,17 @@ def analysis():
 
 
 @app.get("/correlation")
-def correlation():
+def correlation(tickers: str = "AAPL,MSFT,NVDA,BRK-B,LLY"):
 
-    tickers = get_sp500_tickers()
-    tickers = tickers[:10]
+    ticker_list = tickers.split(",")
+    ticker_list = ticker_list[:10]
 
-    prices = get_prices(tickers)
-
+    prices = get_prices(ticker_list)
     returns = calculate_returns(prices)
-
     corr = correlation_matrix(returns)
 
     return {
-        "assets": tickers,
+        "assets": ticker_list,
         "correlation": corr.round(4).to_dict()
     }
 
@@ -135,33 +138,36 @@ def optimize():
     }
 
 @app.get("/efficient-frontier")
-def efficient_frontier_endpoint():
+def efficient_frontier_endpoint(
+    tickers: str = "AAPL,MSFT,NVDA,BRK-B,LLY",
+    max_weight: float = 1.0
+):
 
-    tickers = get_sp500_tickers()
-    tickers = tickers[:10]
+    ticker_list = tickers.split(",")
+    ticker_list = ticker_list[:10]
 
-    prices = get_prices(tickers)
+    prices = get_prices(ticker_list)
     returns = calculate_returns(prices)
 
     exp_returns = expected_annual_returns(returns)
     cov = annual_covariance_matrix(returns)
 
-    frontier = efficient_frontier(exp_returns, cov, points=30)
+    frontier = efficient_frontier(exp_returns, cov, points=30, max_weight=max_weight)
 
-    max_sharpe_weights = optimize_max_sharpe(exp_returns, cov)
-    min_vol_weights = optimize_min_volatility(exp_returns, cov)
+    max_sharpe_weights = optimize_max_sharpe(exp_returns, cov, max_weight=max_weight)
+    min_vol_weights = optimize_min_volatility(exp_returns, cov, max_weight=max_weight)
 
     return {
-        "assets": tickers,
+        "assets": ticker_list,
         "frontier": frontier,
         "max_sharpe": {
             "return": round(portfolio_return(max_sharpe_weights, exp_returns), 4),
             "volatility": round(portfolio_volatility(max_sharpe_weights, cov), 4),
-            "weights": dict(zip(tickers, max_sharpe_weights.round(4)))
+            "weights": dict(zip(ticker_list, max_sharpe_weights.round(4)))
         },
         "min_volatility": {
             "return": round(portfolio_return(min_vol_weights, exp_returns), 4),
             "volatility": round(portfolio_volatility(min_vol_weights, cov), 4),
-            "weights": dict(zip(tickers, min_vol_weights.round(4)))
+            "weights": dict(zip(ticker_list, min_vol_weights.round(4)))
         }
     }

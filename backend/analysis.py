@@ -60,13 +60,13 @@ def negative_sharpe_ratio(weights, expected_returns, cov_matrix, risk_free_rate=
     return -((ret - risk_free_rate) / vol)
 
 
-def optimize_max_sharpe(expected_returns, cov_matrix, risk_free_rate=0.0):
+def optimize_max_sharpe(expected_returns, cov_matrix, risk_free_rate=0.0, max_weight=1.0):
     num_assets = len(expected_returns)
     initial_weights = np.array([1 / num_assets] * num_assets)
 
-    bounds = tuple((0, 1) for _ in range(num_assets))
+    bounds = tuple((0, max_weight) for _ in range(num_assets))
     constraints = (
-        {"type": "eq", "fun": lambda weights: np.sum(weights) - 1}
+        {"type": "eq", "fun": lambda weights: np.sum(weights) - 1},
     )
 
     result = minimize(
@@ -80,14 +80,24 @@ def optimize_max_sharpe(expected_returns, cov_matrix, risk_free_rate=0.0):
 
     return result.x
 
+    result = minimize(
+        negative_sharpe_ratio,
+        initial_weights,
+        args=(expected_returns, cov_matrix, risk_free_rate),
+        method="SLSQP",
+        bounds=bounds,
+        constraints=constraints
+    )
 
-def optimize_min_volatility(expected_returns, cov_matrix):
+    return result.x
+
+def optimize_min_volatility(expected_returns, cov_matrix, max_weight=1.0):
     num_assets = len(expected_returns)
     initial_weights = np.array([1 / num_assets] * num_assets)
 
-    bounds = tuple((0, 1) for _ in range(num_assets))
+    bounds = tuple((0, max_weight) for _ in range(num_assets))
     constraints = (
-        {"type": "eq", "fun": lambda weights: np.sum(weights) - 1}
+        {"type": "eq", "fun": lambda weights: np.sum(weights) - 1},
     )
 
     result = minimize(
@@ -101,15 +111,28 @@ def optimize_min_volatility(expected_returns, cov_matrix):
 
     return result.x
 
-def minimize_volatility_for_target_return(target_return, expected_returns, cov_matrix):
+
+
+    result = minimize(
+        portfolio_volatility,
+        initial_weights,
+        args=(cov_matrix,),
+        method="SLSQP",
+        bounds=bounds,
+        constraints=constraints
+    )
+
+    return result.x
+
+def minimize_volatility_for_target_return(target_return, expected_returns, cov_matrix, max_weight=1.0):
     num_assets = len(expected_returns)
     initial_weights = np.array([1 / num_assets] * num_assets)
 
-    bounds = tuple((0, 1) for _ in range(num_assets))
+    bounds = tuple((0, max_weight) for _ in range(num_assets))
 
     constraints = (
         {"type": "eq", "fun": lambda weights: np.sum(weights) - 1},
-        {"type": "eq", "fun": lambda weights: portfolio_return(weights, expected_returns) - target_return}
+        {"type": "eq", "fun": lambda weights: portfolio_return(weights, expected_returns) - target_return},
     )
 
     result = minimize(
@@ -126,8 +149,22 @@ def minimize_volatility_for_target_return(target_return, expected_returns, cov_m
 
     return result.x
 
+    result = minimize(
+        portfolio_volatility,
+        initial_weights,
+        args=(cov_matrix,),
+        method="SLSQP",
+        bounds=bounds,
+        constraints=constraints
+    )
 
-def efficient_frontier(expected_returns, cov_matrix, points=30):
+    if not result.success:
+        return None
+
+    return result.x
+
+
+def efficient_frontier(expected_returns, cov_matrix, points=30, max_weight=1.0):
     min_return = expected_returns.min()
     max_return = expected_returns.max()
 
@@ -136,7 +173,12 @@ def efficient_frontier(expected_returns, cov_matrix, points=30):
     frontier = []
 
     for target in target_returns:
-        weights = minimize_volatility_for_target_return(target, expected_returns, cov_matrix)
+        weights = minimize_volatility_for_target_return(
+            target,
+            expected_returns,
+            cov_matrix,
+            max_weight=max_weight
+        )
 
         if weights is None:
             continue
@@ -151,3 +193,5 @@ def efficient_frontier(expected_returns, cov_matrix, points=30):
         })
 
     return frontier
+
+    

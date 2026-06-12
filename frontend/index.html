@@ -6,15 +6,108 @@
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 </head>
 <body>
-    <h1>Portfolio Correlation Heatmap</h1>
+    <h1>Portfolio Tool</h1>
+
+    <h2>Assets auswählen</h2>
+    <p>Wähle bis zu 10 Assets aus.</p>
+
+    <div id="asset-list"></div>
+
+    <br>
+
+    <label>Investmentbetrag (€):</label>
+    <input
+        id="capital"
+        type="number"
+        value="100000"
+        min="1000"
+        step="1000"
+    />
+
+    <br><br>
+
+    <button onclick="runAnalysis()">Portfolio berechnen</button>
+
+    <h2>Portfolio Correlation Heatmap</h2>
     <div id="heatmap" style="width:900px;height:700px;"></div>
 
-    <h1>Efficient Frontier</h1>
+    <h2>Efficient Frontier</h2>
     <div id="frontier" style="width:900px;height:700px;"></div>
 
+    <h2>Optimale Portfolios</h2>
+
+    <h3>Max Sharpe Portfolio</h3>
+    <div id="max-sharpe-table"></div>
+
+    <h3>Minimum Volatility Portfolio</h3>
+    <div id="min-vol-table"></div>
+
     <script>
-        async function loadCorrelation() {
-            const response = await fetch("http://127.0.0.1:8000/correlation");
+        async function loadAssets() {
+            const response = await fetch("http://127.0.0.1:8000/assets");
+            const data = await response.json();
+
+            const assetList = document.getElementById("asset-list");
+            assetList.innerHTML = "";
+
+            data.assets.forEach(asset => {
+                const label = document.createElement("label");
+                label.style.display = "block";
+
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.value = asset.ticker;
+
+                if (["AAPL", "MSFT", "BTC-USD", "GLD", "TLT"].includes(asset.ticker)) {
+                    checkbox.checked = true;
+                }
+
+                label.appendChild(checkbox);
+                label.appendChild(
+                    document.createTextNode(
+                        ` ${asset.ticker} - ${asset.name} (${asset.asset_class})`
+                    )
+                );
+
+                assetList.appendChild(label);
+            });
+        }
+
+        function getSelectedTickers() {
+            const checkboxes = document.querySelectorAll("#asset-list input:checked");
+            const tickers = Array.from(checkboxes).map(cb => cb.value);
+
+            if (tickers.length === 0) {
+                alert("Bitte mindestens ein Asset auswählen.");
+                return null;
+            }
+
+            if (tickers.length > 10) {
+                alert("Bitte maximal 10 Assets auswählen.");
+                return null;
+            }
+
+            return tickers;
+        }
+
+        async function runAnalysis() {
+            const tickers = getSelectedTickers();
+
+            if (!tickers) {
+                return;
+            }
+
+            const tickerString = tickers.join(",");
+
+            await loadCorrelation(tickerString);
+            await loadFrontier(tickerString);
+        }
+
+        async function loadCorrelation(tickerString) {
+            const response = await fetch(
+                `http://127.0.0.1:8000/correlation?tickers=${tickerString}`
+            );
+
             const data = await response.json();
 
             const assets = data.assets;
@@ -42,8 +135,11 @@
             Plotly.newPlot("heatmap", [trace], layout);
         }
 
-        async function loadFrontier() {
-            const response = await fetch("http://127.0.0.1:8000/efficient-frontier");
+        async function loadFrontier(tickerString) {
+            const response = await fetch(
+                `http://127.0.0.1:8000/efficient-frontier?tickers=${tickerString}&max_weight=0.3`
+            );
+
             const data = await response.json();
 
             const frontier = data.frontier;
@@ -80,11 +176,61 @@
                 yaxis: { title: "Erwartete Rendite" }
             };
 
-            Plotly.newPlot("frontier", [traceFrontier, traceMaxSharpe, traceMinVol], layout);
+            Plotly.newPlot(
+                "frontier",
+                [traceFrontier, traceMaxSharpe, traceMinVol],
+                layout
+            );
+
+            renderWeightsTable("max-sharpe-table", data.max_sharpe);
+            renderWeightsTable("min-vol-table", data.min_volatility);
         }
 
-        loadCorrelation();
-        loadFrontier();
+        function renderWeightsTable(elementId, portfolio) {
+            const container = document.getElementById(elementId);
+
+            const capital =
+                parseFloat(document.getElementById("capital").value) || 0;
+
+            const sharpe = portfolio.volatility !== 0
+                ? portfolio.return / portfolio.volatility
+                : 0;
+
+            let html = `
+                <p>
+                    Rendite: ${(portfolio.return * 100).toFixed(2)}% |
+                    Volatilität: ${(portfolio.volatility * 100).toFixed(2)}% |
+                    Sharpe Ratio: ${sharpe.toFixed(2)}
+                </p>
+                <table border="1" cellpadding="6" cellspacing="0">
+                    <tr>
+                        <th>Asset</th>
+                        <th>Gewichtung</th>
+                        <th>Betrag (€)</th>
+                    </tr>
+            `;
+
+            for (const [ticker, weight] of Object.entries(portfolio.weights)) {
+                if (weight > 0.0001) {
+                    html += `
+                        <tr>
+                            <td>${ticker}</td>
+                            <td>${(weight * 100).toFixed(2)}%</td>
+                            <td>${(weight * capital).toLocaleString("de-DE", {
+                                maximumFractionDigits: 0
+                            })} €</td>
+                        </tr>
+                    `;
+                }
+            }
+
+            html += "</table>";
+            container.innerHTML = html;
+        }
+
+        loadAssets().then(() => {
+            runAnalysis();
+        });
     </script>
 </body>
 </html>
