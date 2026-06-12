@@ -2,13 +2,15 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Portfolio Correlation Heatmap</title>
+    <title>Portfolio Tool</title>
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 </head>
 <body>
     <h1>Portfolio Correlation Heatmap</h1>
-
     <div id="heatmap" style="width:900px;height:700px;"></div>
+
+    <h1>Efficient Frontier</h1>
+    <div id="frontier" style="width:900px;height:700px;"></div>
 
     <script>
         async function loadCorrelation() {
@@ -40,7 +42,49 @@
             Plotly.newPlot("heatmap", [trace], layout);
         }
 
+        async function loadFrontier() {
+            const response = await fetch("http://127.0.0.1:8000/efficient-frontier");
+            const data = await response.json();
+
+            const frontier = data.frontier;
+
+            const traceFrontier = {
+                x: frontier.map(p => p.volatility),
+                y: frontier.map(p => p.return),
+                mode: "lines+markers",
+                type: "scatter",
+                name: "Efficient Frontier"
+            };
+
+            const traceMaxSharpe = {
+                x: [data.max_sharpe.volatility],
+                y: [data.max_sharpe.return],
+                mode: "markers",
+                type: "scatter",
+                name: "Max Sharpe",
+                marker: { size: 14 }
+            };
+
+            const traceMinVol = {
+                x: [data.min_volatility.volatility],
+                y: [data.min_volatility.return],
+                mode: "markers",
+                type: "scatter",
+                name: "Minimum Volatility",
+                marker: { size: 14 }
+            };
+
+            const layout = {
+                title: "Efficient Frontier",
+                xaxis: { title: "Risiko / Volatilität" },
+                yaxis: { title: "Erwartete Rendite" }
+            };
+
+            Plotly.newPlot("frontier", [traceFrontier, traceMaxSharpe, traceMinVol], layout);
+        }
+
         loadCorrelation();
+        loadFrontier();
     </script>
 </body>
 </html>
