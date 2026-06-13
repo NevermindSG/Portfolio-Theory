@@ -194,4 +194,25 @@ def efficient_frontier(expected_returns, cov_matrix, points=30, max_weight=1.0):
 
     return frontier
 
-    
+def portfolio_backtest(price_df, weights, initial_capital=100000):
+        returns = calculate_returns(price_df)
+
+        portfolio_returns = returns.dot(weights)
+
+        portfolio_value = (1 + portfolio_returns).cumprod() * initial_capital
+
+        return portfolio_value
+
+def filter_prices_by_period(price_df, period="5y"):
+    end_date = price_df.index.max()
+
+    if period == "6mo":
+        start_date = end_date - pd.DateOffset(months=6)
+    elif period == "1y":
+        start_date = end_date - pd.DateOffset(years=1)
+    elif period == "3y":
+        start_date = end_date - pd.DateOffset(years=3)
+    else:
+        start_date = end_date - pd.DateOffset(years=5)
+
+    return price_df[price_df.index >= start_date]

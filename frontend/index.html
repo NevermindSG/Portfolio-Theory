@@ -4,43 +4,239 @@
     <meta charset="UTF-8">
     <title>Portfolio Tool</title>
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #0f172a;
+            color: #e5e7eb;
+        }
+
+        header {
+            padding: 20px 30px;
+            background: #020617;
+            border-bottom: 1px solid #334155;
+        }
+
+        h1, h2, h3 {
+            margin-top: 0;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .card {
+            background: #111827;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 18px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+        }
+
+        .controls {
+            height: fit-content;
+            position: sticky;
+            top: 20px;
+        }
+
+        label {
+            display: block;
+            margin: 6px 0;
+        }
+
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #475569;
+            background: #020617;
+            color: #e5e7eb;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 15px;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            background: #2563eb;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .chart {
+            width: 100%;
+            height: 520px;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .portfolio-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            background: #020617;
+        }
+
+        th, td {
+            border: 1px solid #334155;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background: #1e293b;
+        }
+
+        .muted {
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        footer {
+            position: fixed;
+            bottom: 10px;
+            right: 20px;
+            color: #64748b;
+            font-size: 13px;
+            z-index: 999;
+        }
+
+        @media (max-width: 1100px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .charts-grid,
+            .portfolio-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .controls {
+                position: static;
+            }
+        }
+    </style>
 </head>
+
 <body>
-    <h1>Portfolio Tool</h1>
+    <header>
+        <h1>Portfolio Tool</h1>
+        <div class="muted">Markowitz Optimierung, Korrelation, Efficient Frontier und Backtest</div>
+    </header>
 
-    <h2>Assets auswählen</h2>
-    <p>Wähle bis zu 10 Assets aus.</p>
+    <main class="dashboard">
+        <section class="card controls">
+            <h2>Steuerung</h2>
 
-    <div id="asset-list"></div>
+            <h3>Assets auswählen</h3>
+            <p class="muted">Wähle bis zu 10 Assets aus.</p>
+            <div id="asset-list"></div>
 
-    <br>
+            <br>
 
-    <label>Investmentbetrag (€):</label>
-    <input
-        id="capital"
-        type="number"
-        value="100000"
-        min="1000"
-        step="1000"
-    />
+            <label>Investmentbetrag (€):</label>
+            <input
+                id="capital"
+                type="number"
+                value="100000"
+                min="1000"
+                step="1000"
+            />
 
-    <br><br>
+            <br><br>
 
-    <button onclick="runAnalysis()">Portfolio berechnen</button>
+            <label>Maximale Gewichtung pro Asset:</label>
+            <input
+                id="max-weight"
+                type="range"
+                min="10"
+                max="100"
+                value="30"
+                step="5"
+                oninput="updateMaxWeightLabel()"
+            />
+            <strong id="max-weight-label">30%</strong>
 
-    <h2>Portfolio Correlation Heatmap</h2>
-    <div id="heatmap" style="width:900px;height:700px;"></div>
+            <br><br>
 
-    <h2>Efficient Frontier</h2>
-    <div id="frontier" style="width:900px;height:700px;"></div>
+            <label>Analysezeitraum:</label>
+            <select id="period">
+                <option value="6mo">6 Monate</option>
+                <option value="1y">1 Jahr</option>
+                <option value="3y">3 Jahre</option>
+                <option value="5y" selected>5 Jahre</option>
+            </select>
 
-    <h2>Optimale Portfolios</h2>
+            <button onclick="runAnalysis()">Portfolio berechnen</button>
+        </section>
 
-    <h3>Max Sharpe Portfolio</h3>
-    <div id="max-sharpe-table"></div>
+        <section>
+            <div class="charts-grid">
+                <div class="card">
+                    <h2>Korrelations-Heatmap</h2>
+                    <div id="heatmap" class="chart"></div>
+                </div>
 
-    <h3>Minimum Volatility Portfolio</h3>
-    <div id="min-vol-table"></div>
+                <div class="card">
+                    <h2>Efficient Frontier</h2>
+                    <div id="frontier" class="chart"></div>
+                </div>
+
+                <div class="card full-width">
+                    <h2>Portfolio Backtest</h2>
+                    <div id="backtest" class="chart"></div>
+                </div>
+            </div>
+
+            <br>
+
+            <div class="portfolio-grid">
+                <div class="card">
+                    <h2>Max Sharpe Portfolio</h2>
+                    <div id="max-sharpe-table"></div>
+                </div>
+
+                <div class="card">
+                    <h2>Minimum Volatility Portfolio</h2>
+                    <div id="min-vol-table"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        Portfolio Tool • Created by Sven Göhner
+    </footer>
 
     <script>
         async function loadAssets() {
@@ -52,7 +248,6 @@
 
             data.assets.forEach(asset => {
                 const label = document.createElement("label");
-                label.style.display = "block";
 
                 const checkbox = document.createElement("input");
                 checkbox.type = "checkbox";
@@ -71,6 +266,11 @@
 
                 assetList.appendChild(label);
             });
+        }
+
+        function updateMaxWeightLabel() {
+            const value = document.getElementById("max-weight").value;
+            document.getElementById("max-weight-label").innerText = `${value}%`;
         }
 
         function getSelectedTickers() {
@@ -101,11 +301,14 @@
 
             await loadCorrelation(tickerString);
             await loadFrontier(tickerString);
+            await loadBacktest(tickerString);
         }
 
         async function loadCorrelation(tickerString) {
+            const period = document.getElementById("period").value;
+
             const response = await fetch(
-                `http://127.0.0.1:8000/correlation?tickers=${tickerString}`
+                `http://127.0.0.1:8000/correlation?tickers=${tickerString}&period=${period}`
             );
 
             const data = await response.json();
@@ -127,17 +330,24 @@
             };
 
             const layout = {
-                title: "Korrelationsmatrix",
+                paper_bgcolor: "#111827",
+                plot_bgcolor: "#111827",
+                font: { color: "#e5e7eb" },
+                margin: { t: 40, r: 20, b: 60, l: 60 },
                 xaxis: { title: "Assets" },
                 yaxis: { title: "Assets" }
             };
 
-            Plotly.newPlot("heatmap", [trace], layout);
+            Plotly.newPlot("heatmap", [trace], layout, {responsive: true});
         }
 
         async function loadFrontier(tickerString) {
+            const period = document.getElementById("period").value;
+            const maxWeightPercent = document.getElementById("max-weight").value;
+            const maxWeightDecimal = maxWeightPercent / 100;
+
             const response = await fetch(
-                `http://127.0.0.1:8000/efficient-frontier?tickers=${tickerString}&max_weight=0.3`
+                `http://127.0.0.1:8000/efficient-frontier?tickers=${tickerString}&max_weight=${maxWeightDecimal}&period=${period}`
             );
 
             const data = await response.json();
@@ -171,19 +381,60 @@
             };
 
             const layout = {
-                title: "Efficient Frontier",
+                paper_bgcolor: "#111827",
+                plot_bgcolor: "#111827",
+                font: { color: "#e5e7eb" },
+                margin: { t: 40, r: 20, b: 60, l: 60 },
                 xaxis: { title: "Risiko / Volatilität" },
-                yaxis: { title: "Erwartete Rendite" }
+                yaxis: { title: "Erwartete Rendite" },
+                legend: { orientation: "h" }
             };
 
             Plotly.newPlot(
                 "frontier",
                 [traceFrontier, traceMaxSharpe, traceMinVol],
-                layout
+                layout,
+                {responsive: true}
             );
 
             renderWeightsTable("max-sharpe-table", data.max_sharpe);
             renderWeightsTable("min-vol-table", data.min_volatility);
+        }
+
+        async function loadBacktest(tickerString) {
+            const period = document.getElementById("period").value;
+            const capital =
+                parseFloat(document.getElementById("capital").value) || 100000;
+
+            const maxWeightPercent =
+                document.getElementById("max-weight").value;
+
+            const maxWeightDecimal = maxWeightPercent / 100;
+
+            const response = await fetch(
+                `http://127.0.0.1:8000/backtest?tickers=${tickerString}&max_weight=${maxWeightDecimal}&capital=${capital}&period=${period}`
+            );
+
+            const data = await response.json();
+
+            const trace = {
+                x: data.dates,
+                y: data.values,
+                mode: "lines",
+                type: "scatter",
+                name: "Portfolio"
+            };
+
+            const layout = {
+                paper_bgcolor: "#111827",
+                plot_bgcolor: "#111827",
+                font: { color: "#e5e7eb" },
+                margin: { t: 40, r: 20, b: 60, l: 70 },
+                xaxis: { title: "Datum" },
+                yaxis: { title: "Portfolio Wert (€)" }
+            };
+
+            Plotly.newPlot("backtest", [trace], layout, {responsive: true});
         }
 
         function renderWeightsTable(elementId, portfolio) {
@@ -197,12 +448,12 @@
                 : 0;
 
             let html = `
-                <p>
+                <p class="muted">
                     Rendite: ${(portfolio.return * 100).toFixed(2)}% |
                     Volatilität: ${(portfolio.volatility * 100).toFixed(2)}% |
                     Sharpe Ratio: ${sharpe.toFixed(2)}
                 </p>
-                <table border="1" cellpadding="6" cellspacing="0">
+                <table>
                     <tr>
                         <th>Asset</th>
                         <th>Gewichtung</th>

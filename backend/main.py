@@ -12,7 +12,9 @@ from backend.analysis import (
     optimize_min_volatility,
     portfolio_return,
     portfolio_volatility,
-    efficient_frontier
+    efficient_frontier,
+    portfolio_backtest,
+    filter_prices_by_period
 )
 
 from backend.assets import get_sp500_tickers
@@ -64,12 +66,13 @@ def analysis():
 
 
 @app.get("/correlation")
-def correlation(tickers: str = "AAPL,MSFT,NVDA,BRK-B,LLY"):
+def correlation(tickers: str = "AAPL,MSFT,NVDA,BRK-B,LLY", period: str = "5y"):
 
     ticker_list = tickers.split(",")
     ticker_list = ticker_list[:10]
 
     prices = get_prices(ticker_list)
+    prices = filter_prices_by_period(prices, period)
     returns = calculate_returns(prices)
     corr = correlation_matrix(returns)
 
@@ -140,7 +143,8 @@ def optimize():
 @app.get("/efficient-frontier")
 def efficient_frontier_endpoint(
     tickers: str = "AAPL,MSFT,NVDA,BRK-B,LLY",
-    max_weight: float = 1.0
+    max_weight: float = 1.0,
+    period: str = "5y"
 ):
 
     ticker_list = tickers.split(",")
@@ -170,4 +174,31 @@ def efficient_frontier_endpoint(
             "volatility": round(portfolio_volatility(min_vol_weights, cov), 4),
             "weights": dict(zip(ticker_list, min_vol_weights.round(4)))
         }
+    }
+
+@app.get("/backtest")
+def backtest(
+    tickers: str = "AAPL,MSFT,BTC-USD,GLD,TLT",
+    max_weight: float = 0.3,
+    capital: float = 100000,
+    period: str = "5y"
+):
+    ticker_list = tickers.split(",")
+    ticker_list = ticker_list[:10]
+
+    prices = get_prices(ticker_list)
+    returns = calculate_returns(prices)
+
+    exp_returns = expected_annual_returns(returns)
+    cov = annual_covariance_matrix(returns)
+
+    weights = optimize_max_sharpe(exp_returns, cov, max_weight=max_weight)
+
+    portfolio_value = portfolio_backtest(prices, weights, initial_capital=capital)
+
+    return {
+        "assets": ticker_list,
+        "weights": dict(zip(ticker_list, weights.round(4))),
+        "dates": [str(date.date()) for date in portfolio_value.index],
+        "values": portfolio_value.round(2).tolist()
     }
