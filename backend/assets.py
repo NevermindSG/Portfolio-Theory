@@ -1,25 +1,36 @@
-ASSETS = [
-    {"ticker": "AAPL", "name": "Apple", "asset_class": "Stock"},
-    {"ticker": "MSFT", "name": "Microsoft", "asset_class": "Stock"},
-    {"ticker": "NVDA", "name": "Nvidia", "asset_class": "Stock"},
-    {"ticker": "AMZN", "name": "Amazon", "asset_class": "Stock"},
-    {"ticker": "META", "name": "Meta", "asset_class": "Stock"},
-    {"ticker": "GOOGL", "name": "Alphabet A", "asset_class": "Stock"},
-    {"ticker": "BRK-B", "name": "Berkshire Hathaway", "asset_class": "Stock"},
-    {"ticker": "LLY", "name": "Eli Lilly", "asset_class": "Stock"},
-    {"ticker": "AVGO", "name": "Broadcom", "asset_class": "Stock"},
+import os
+import pandas as pd
 
-    {"ticker": "BTC-USD", "name": "Bitcoin", "asset_class": "Crypto"},
-    {"ticker": "GLD", "name": "Gold ETF", "asset_class": "Commodity"},
-    {"ticker": "TLT", "name": "20+ Year Treasury ETF", "asset_class": "Bond"},
-    {"ticker": "IEF", "name": "7-10 Year Treasury ETF", "asset_class": "Bond"},
-    {"ticker": "SHY", "name": "1-3 Year Treasury ETF", "asset_class": "Bond"},
+
+CSV_PATH = "data/sp500_assets.csv"
+
+
+EXTRA_ASSETS = [
+    {"ticker": "BTC-USD", "name": "Bitcoin", "asset_class": "Crypto", "sector": "Crypto"},
+    {"ticker": "GLD", "name": "Gold ETF", "asset_class": "Commodity", "sector": "Gold"},
+    {"ticker": "TLT", "name": "20+ Year Treasury ETF", "asset_class": "Bond", "sector": "Treasury"},
+    {"ticker": "IEF", "name": "7-10 Year Treasury ETF", "asset_class": "Bond", "sector": "Treasury"},
+    {"ticker": "SHY", "name": "1-3 Year Treasury ETF", "asset_class": "Bond", "sector": "Treasury"},
 ]
 
 
+def load_sp500_assets():
+    if not os.path.exists(CSV_PATH):
+        raise FileNotFoundError(f"CSV nicht gefunden: {CSV_PATH}")
+
+    df = pd.read_csv(CSV_PATH)
+
+    return df.to_dict(orient="records")
+
+
+def get_all_assets():
+    return load_sp500_assets() + EXTRA_ASSETS
+
+
 def get_assets():
-    return ASSETS
+    return get_all_assets()
 
 
 def get_sp500_tickers():
-    return [asset["ticker"] for asset in ASSETS]
+    assets = load_sp500_assets()
+    return [asset["ticker"] for asset in assets]

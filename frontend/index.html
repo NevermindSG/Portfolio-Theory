@@ -50,8 +50,10 @@
         }
 
         input[type="number"],
+        input[type="text"],
         select {
             width: 100%;
+            box-sizing: border-box;
             padding: 8px;
             border-radius: 8px;
             border: 1px solid #475569;
@@ -77,6 +79,61 @@
 
         button:hover {
             background: #1d4ed8;
+        }
+
+        .asset-list {
+            max-height: 260px;
+            overflow-y: auto;
+            border: 1px solid #334155;
+            padding: 10px;
+            border-radius: 8px;
+            background: #020617;
+        }
+
+        .asset-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 3px 0;
+            font-size: 14px;
+        }
+
+        .selected-assets {
+            min-height: 80px;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 10px;
+            background: #020617;
+        }
+
+        .selected-chip {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 6px 8px;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .remove-btn {
+            width: auto;
+            margin: 0;
+            padding: 2px 7px;
+            background: #475569;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+
+        .remove-btn:hover {
+            background: #ef4444;
         }
 
         .charts-grid {
@@ -158,9 +215,22 @@
         <section class="card controls">
             <h2>Steuerung</h2>
 
-            <h3>Assets auswählen</h3>
-            <p class="muted">Wähle bis zu 10 Assets aus.</p>
-            <div id="asset-list"></div>
+            <h3>Assets suchen</h3>
+            <p class="muted">Suche nach Ticker oder Name. Maximal 10 Assets.</p>
+
+            <input
+                type="text"
+                id="asset-search"
+                placeholder="z. B. Tesla, Microsoft, BTC..."
+                onkeyup="filterAssets()"
+            />
+
+            <br><br>
+
+            <div id="asset-list" class="asset-list"></div>
+
+            <h3 style="margin-top: 18px;">Ausgewählte Assets</h3>
+            <div id="selected-assets" class="selected-assets"></div>
 
             <br>
 
@@ -239,32 +309,123 @@
     </footer>
 
     <script>
+        let allAssets = [];
+
+        let selectedAssets = [
+            "AAPL",
+            "MSFT",
+            "BTC-USD",
+            "GLD",
+            "TLT"
+        ];
+
         async function loadAssets() {
             const response = await fetch("http://127.0.0.1:8000/assets");
             const data = await response.json();
 
+            allAssets = data.assets;
+
+            renderAssetList(allAssets.slice(0, 50));
+            renderSelectedAssets();
+        }
+
+        function renderAssetList(assets) {
             const assetList = document.getElementById("asset-list");
             assetList.innerHTML = "";
 
-            data.assets.forEach(asset => {
-                const label = document.createElement("label");
+            assets.forEach(asset => {
+                const row = document.createElement("label");
+                row.className = "asset-row";
+                row.title = `${asset.ticker} - ${asset.name}`;
 
                 const checkbox = document.createElement("input");
                 checkbox.type = "checkbox";
                 checkbox.value = asset.ticker;
+                checkbox.checked = selectedAssets.includes(asset.ticker);
 
-                if (["AAPL", "MSFT", "BTC-USD", "GLD", "TLT"].includes(asset.ticker)) {
-                    checkbox.checked = true;
-                }
+                checkbox.addEventListener("change", () => {
+                    if (checkbox.checked) {
+                        if (selectedAssets.length >= 10) {
+                            checkbox.checked = false;
+                            alert("Bitte maximal 10 Assets auswählen.");
+                            return;
+                        }
 
-                label.appendChild(checkbox);
-                label.appendChild(
+                        if (!selectedAssets.includes(asset.ticker)) {
+                            selectedAssets.push(asset.ticker);
+                        }
+                    } else {
+                        selectedAssets = selectedAssets.filter(
+                            ticker => ticker !== asset.ticker
+                        );
+                    }
+
+                    renderSelectedAssets();
+                });
+
+                row.appendChild(checkbox);
+                row.appendChild(
                     document.createTextNode(
-                        ` ${asset.ticker} - ${asset.name} (${asset.asset_class})`
+                        ` ${asset.ticker} - ${asset.name}`
                     )
                 );
 
-                assetList.appendChild(label);
+                assetList.appendChild(row);
+            });
+        }
+
+        function filterAssets() {
+            const search = document
+                .getElementById("asset-search")
+                .value
+                .toLowerCase();
+
+            let filtered = allAssets;
+
+            if (search.trim() !== "") {
+                filtered = allAssets.filter(asset =>
+                    asset.ticker.toLowerCase().includes(search) ||
+                    asset.name.toLowerCase().includes(search)
+                );
+            }
+
+            renderAssetList(filtered.slice(0, 50));
+        }
+
+        function renderSelectedAssets() {
+            const container = document.getElementById("selected-assets");
+            container.innerHTML = "";
+
+            if (selectedAssets.length === 0) {
+                container.innerHTML = `<div class="muted">Noch keine Assets ausgewählt.</div>`;
+                return;
+            }
+
+            selectedAssets.forEach(ticker => {
+                const asset = allAssets.find(a => a.ticker === ticker);
+
+                const chip = document.createElement("div");
+                chip.className = "selected-chip";
+
+                const label = document.createElement("span");
+                label.innerText = asset
+                    ? `${ticker} - ${asset.name}`
+                    : ticker;
+
+                const removeButton = document.createElement("button");
+                removeButton.className = "remove-btn";
+                removeButton.innerText = "x";
+
+                removeButton.addEventListener("click", () => {
+                    selectedAssets = selectedAssets.filter(t => t !== ticker);
+                    filterAssets();
+                    renderSelectedAssets();
+                });
+
+                chip.appendChild(label);
+                chip.appendChild(removeButton);
+
+                container.appendChild(chip);
             });
         }
 
@@ -274,20 +435,17 @@
         }
 
         function getSelectedTickers() {
-            const checkboxes = document.querySelectorAll("#asset-list input:checked");
-            const tickers = Array.from(checkboxes).map(cb => cb.value);
-
-            if (tickers.length === 0) {
+            if (selectedAssets.length === 0) {
                 alert("Bitte mindestens ein Asset auswählen.");
                 return null;
             }
 
-            if (tickers.length > 10) {
+            if (selectedAssets.length > 10) {
                 alert("Bitte maximal 10 Assets auswählen.");
                 return null;
             }
 
-            return tickers;
+            return selectedAssets;
         }
 
         async function runAnalysis() {
