@@ -216,3 +216,32 @@ def filter_prices_by_period(price_df, period="5y"):
         start_date = end_date - pd.DateOffset(years=5)
 
     return price_df[price_df.index >= start_date]
+
+def backtest_metrics(portfolio_value):
+    start_value = portfolio_value.iloc[0]
+    end_value = portfolio_value.iloc[-1]
+
+    total_return = (end_value / start_value) - 1
+
+    days = (portfolio_value.index[-1] - portfolio_value.index[0]).days
+    years = days / 365.25
+
+    cagr = (end_value / start_value) ** (1 / years) - 1
+
+    running_max = portfolio_value.cummax()
+    drawdown = (portfolio_value / running_max) - 1
+    max_drawdown = drawdown.min()
+
+    return {
+        "start_value": round(start_value, 2),
+        "end_value": round(end_value, 2),
+        "total_return": round(total_return, 4),
+        "cagr": round(cagr, 4),
+        "max_drawdown": round(max_drawdown, 4)
+    }
+
+def single_asset_backtest(price_series, initial_capital=100000):
+    normalized = price_series / price_series.iloc[0]
+    value = normalized * initial_capital
+
+    return value

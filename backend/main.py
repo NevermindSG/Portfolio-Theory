@@ -16,7 +16,9 @@ from backend.analysis import (
     portfolio_volatility,
     efficient_frontier,
     portfolio_backtest,
-    filter_prices_by_period
+    filter_prices_by_period,
+    backtest_metrics,
+    single_asset_backtest
 )
 
 app = FastAPI()
@@ -55,7 +57,8 @@ def analysis():
         "assets": tickers,
         "number_of_observations": len(returns),
         "correlation_shape": corr.shape,
-        "covariance_shape": cov.shape
+        "covariance_shape": cov.shape,
+        "metrics": metrics
     }
 
 
@@ -209,9 +212,33 @@ def backtest(
         initial_capital=capital
     )
 
+    metrics = backtest_metrics(portfolio_value)
+
+    benchmark_tickers = {
+        "sp500": "SPY",
+        "bitcoin": "BTC-USD",
+        "gold": "GLD",
+        "treasury": "TLT"
+    }
+
+    benchmark_values = {}
+
+    benchmark_prices = get_prices(list(benchmark_tickers.values()))
+    benchmark_prices = filter_prices_by_period(benchmark_prices, period)
+
+    for name, ticker in benchmark_tickers.items():
+        if ticker in benchmark_prices.columns:
+            benchmark_values[name] = single_asset_backtest(
+                benchmark_prices[ticker],
+                initial_capital=capital
+            ).round(2).tolist()
+
     return {
         "assets": ticker_list,
         "weights": dict(zip(ticker_list, weights.round(4))),
         "dates": [str(date.date()) for date in portfolio_value.index],
-        "values": portfolio_value.round(2).tolist()
+        "values": portfolio_value.round(2).tolist(),
+        "metrics": metrics,
+        "benchmarks": benchmark_values
     }
+

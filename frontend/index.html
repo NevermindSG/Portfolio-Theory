@@ -202,6 +202,32 @@
                 position: static;
             }
         }
+
+
+        .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+.metric-card {
+    background: #020617;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 12px;
+}
+
+.metric-label {
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+.metric-value {
+    font-size: 18px;
+    font-weight: bold;
+    margin-top: 6px;
+}
     </style>
 </head>
 
@@ -217,6 +243,13 @@
 
             <h3>Assets suchen</h3>
             <p class="muted">Suche nach Ticker oder Name. Maximal 10 Assets.</p>
+
+            <label>Sektor:</label>
+            <select id="sector-filter" onchange="filterAssets()">
+                <option value="all">Alle</option>
+            </select>
+
+            <br><br>
 
             <input
                 type="text"
@@ -284,23 +317,31 @@
 
                 <div class="card full-width">
                     <h2>Portfolio Backtest</h2>
+
+                    <div id="backtest-metrics" class="metrics-grid"></div>
+
                     <div id="backtest" class="chart"></div>
                 </div>
             </div>
 
             <br>
 
-            <div class="portfolio-grid">
-                <div class="card">
-                    <h2>Max Sharpe Portfolio</h2>
-                    <div id="max-sharpe-table"></div>
-                </div>
+        <div class="portfolio-grid">
+    <div class="card">
+        <h2>Max Sharpe Portfolio</h2>
+        <div id="max-sharpe-table"></div>
+    </div>
 
-                <div class="card">
-                    <h2>Minimum Volatility Portfolio</h2>
-                    <div id="min-vol-table"></div>
-                </div>
-            </div>
+    <div class="card">
+        <h2>Portfolio Allocation</h2>
+        <div id="allocation-chart" class="chart"></div>
+    </div>
+
+    <div class="card">
+        <h2>Minimum Volatility Portfolio</h2>
+        <div id="min-vol-table"></div>
+    </div>
+</div>    
         </section>
     </main>
 
@@ -325,8 +366,27 @@
 
             allAssets = data.assets;
 
+            populateSectorFilter();
             renderAssetList(allAssets.slice(0, 50));
             renderSelectedAssets();
+        }
+
+        function populateSectorFilter() {
+            const sectorFilter = document.getElementById("sector-filter");
+            sectorFilter.innerHTML = `<option value="all">Alle</option>`;
+
+            const sectors = [...new Set(
+                allAssets
+                    .map(asset => asset.sector)
+                    .filter(sector => sector)
+            )].sort();
+
+            sectors.forEach(sector => {
+                const option = document.createElement("option");
+                option.value = sector;
+                option.innerText = sector;
+                sectorFilter.appendChild(option);
+            });
         }
 
         function renderAssetList(assets) {
@@ -380,10 +440,20 @@
                 .value
                 .toLowerCase();
 
+            const selectedSector = document
+                .getElementById("sector-filter")
+                .value;
+
             let filtered = allAssets;
 
+            if (selectedSector !== "all") {
+                filtered = filtered.filter(asset =>
+                    asset.sector === selectedSector
+                );
+            }
+
             if (search.trim() !== "") {
-                filtered = allAssets.filter(asset =>
+                filtered = filtered.filter(asset =>
                     asset.ticker.toLowerCase().includes(search) ||
                     asset.name.toLowerCase().includes(search)
                 );
@@ -478,7 +548,7 @@
                 assets.map(colTicker => corr[rowTicker][colTicker])
             );
 
-            const trace = {
+            const traces = {
                 x: assets,
                 y: assets,
                 z: zValues,
@@ -496,7 +566,7 @@
                 yaxis: { title: "Assets" }
             };
 
-            Plotly.newPlot("heatmap", [trace], layout, {responsive: true});
+            Plotly.newPlot("heatmap", [traces], layout, {responsive: true});
         }
 
         async function loadFrontier(tickerString) {
@@ -557,44 +627,187 @@
 
             renderWeightsTable("max-sharpe-table", data.max_sharpe);
             renderWeightsTable("min-vol-table", data.min_volatility);
+            renderAllocationChart(data.max_sharpe);
         }
 
-        async function loadBacktest(tickerString) {
-            const period = document.getElementById("period").value;
-            const capital =
-                parseFloat(document.getElementById("capital").value) || 100000;
+    async function loadBacktest(tickerString) {
+    const period = document.getElementById("period").value;
+    const capital =
+        parseFloat(document.getElementById("capital").value) || 100000;
 
-            const maxWeightPercent =
-                document.getElementById("max-weight").value;
+    const maxWeightPercent =
+        document.getElementById("max-weight").value;
 
-            const maxWeightDecimal = maxWeightPercent / 100;
+    const maxWeightDecimal = maxWeightPercent / 100;
 
-            const response = await fetch(
-                `http://127.0.0.1:8000/backtest?tickers=${tickerString}&max_weight=${maxWeightDecimal}&capital=${capital}&period=${period}`
-            );
+    const response = await fetch(
+        `http://127.0.0.1:8000/backtest?tickers=${tickerString}&max_weight=${maxWeightDecimal}&capital=${capital}&period=${period}`
+    );
 
-            const data = await response.json();
+    const data = await response.json();
 
-            const trace = {
-                x: data.dates,
-                y: data.values,
-                mode: "lines",
-                type: "scatter",
-                name: "Portfolio"
-            };
+    console.log("Backtest data:", data);
 
-            const layout = {
-                paper_bgcolor: "#111827",
-                plot_bgcolor: "#111827",
-                font: { color: "#e5e7eb" },
-                margin: { t: 40, r: 20, b: 60, l: 70 },
-                xaxis: { title: "Datum" },
-                yaxis: { title: "Portfolio Wert (€)" }
-            };
+    renderBacktestMetrics(data.metrics);
 
-            Plotly.newPlot("backtest", [trace], layout, {responsive: true});
+    const traces = [
+        {
+            x: data.dates,
+            y: data.values,
+            mode: "lines",
+            type: "scatter",
+            name: "Portfolio",
+            line: {
+                color: "white",
+                width: 4
+            }
         }
+    ];
 
+    if (data.benchmarks && data.benchmarks.sp500) {
+        traces.push({
+            x: data.dates,
+            y: data.benchmarks.sp500,
+            mode: "lines",
+            type: "scatter",
+            name: "S&P 500"
+        });
+    }
+
+    if (data.benchmarks && data.benchmarks.bitcoin) {
+        traces.push({
+            x: data.dates,
+            y: data.benchmarks.bitcoin,
+            mode: "lines",
+            type: "scatter",
+            name: "Bitcoin"
+        });
+    }
+
+    if (data.benchmarks && data.benchmarks.gold) {
+        traces.push({
+            x: data.dates,
+            y: data.benchmarks.gold,
+            mode: "lines",
+            type: "scatter",
+            name: "Gold"
+        });
+    }
+
+    if (data.benchmarks && data.benchmarks.treasury) {
+        traces.push({
+            x: data.dates,
+            y: data.benchmarks.treasury,
+            mode: "lines",
+            type: "scatter",
+            name: "Treasury"
+        });
+    }
+
+    const layout = {
+        paper_bgcolor: "#111827",
+        plot_bgcolor: "#111827",
+        font: { color: "#e5e7eb" },
+        margin: { t: 40, r: 20, b: 60, l: 70 },
+        xaxis: { title: "Datum" },
+        yaxis: { title: "Portfolio Wert (€)" },
+        legend: { orientation: "h" }
+    };
+
+    Plotly.newPlot("backtest", traces, layout, { responsive: true });
+}
+
+
+        function renderBacktestMetrics(metrics) {
+    const container = document.getElementById("backtest-metrics");
+
+    container.innerHTML = `
+        <div class="metric-card">
+            <div class="metric-label">Startwert</div>
+            <div class="metric-value">
+                ${metrics.start_value.toLocaleString("de-DE", {
+                    maximumFractionDigits: 0
+                })} €
+            </div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label">Endwert</div>
+            <div class="metric-value">
+                ${metrics.end_value.toLocaleString("de-DE", {
+                    maximumFractionDigits: 0
+                })} €
+            </div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label">Gesamtrendite</div>
+            <div class="metric-value">
+                ${(metrics.total_return * 100).toFixed(2)}%
+            </div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label">CAGR</div>
+            <div class="metric-value">
+                ${(metrics.cagr * 100).toFixed(2)}%
+            </div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label">Max Drawdown</div>
+            <div class="metric-value">
+                ${(metrics.max_drawdown * 100).toFixed(2)}%
+            </div>
+        </div>
+    `;
+}
+        function renderAllocationChart(portfolio) {
+    const labels = [];
+    const values = [];
+
+    for (const [ticker, weight] of Object.entries(portfolio.weights)) {
+        if (weight > 0.0001) {
+            labels.push(ticker);
+            values.push(weight);
+        }
+    }
+
+    const trace = {
+        labels: labels,
+        values: values,
+        type: "pie",
+        hole: 0.45,
+        textinfo: "label+percent",
+        hoverinfo: "label+percent+value",
+
+        marker: {
+        colors: [
+            "#A5D8FF",  // Pastell Blau
+            "#B2F2BB",  // Pastell Grün
+            "#FFD8A8",  // Pastell Orange
+            "#FFC9C9",  // Pastell Rot
+            "#E5DBFF",  // Pastell Lila
+            "#FFF3BF",  // Pastell Gelb
+            "#C5F6FA",  // Pastell Türkis
+            "#F8D7FF",  // Pastell Pink
+            "#D0EBFF",  // Hellblau
+            "#D3F9D8"   // Hellgrün
+        ]
+    }
+    };
+
+    const layout = {
+        paper_bgcolor: "#111827",
+        plot_bgcolor: "#111827",
+        font: { color: "#e5e7eb" },
+        margin: { t: 20, r: 20, b: 20, l: 20 },
+        showlegend: true,
+        legend: { orientation: "h" }
+    };
+
+    Plotly.newPlot("allocation-chart", [trace], layout, { responsive: true });
+}
         function renderWeightsTable(elementId, portfolio) {
             const container = document.getElementById(elementId);
 
