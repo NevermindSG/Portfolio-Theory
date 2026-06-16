@@ -301,6 +301,17 @@
             </select>
 
             <button onclick="runAnalysis()">Portfolio berechnen</button>
+            <div
+                id="loading"
+                style="
+                    display:none;
+                    margin-top:15px;
+                    text-align:center;
+                    color:#94a3b8;
+                "
+>
+    ⏳ Portfolio wird berechnet...
+</div>
         </section>
 
         <section>
@@ -518,20 +529,34 @@
             return selectedAssets;
         }
 
-        async function runAnalysis() {
-            const tickers = getSelectedTickers();
+       async function runAnalysis() {
 
-            if (!tickers) {
-                return;
-            }
+    const loading =
+        document.getElementById("loading");
 
-            const tickerString = tickers.join(",");
+    loading.style.display = "block";
 
-            await loadCorrelation(tickerString);
-            await loadFrontier(tickerString);
-            await loadBacktest(tickerString);
+    try {
+
+        const tickers = getSelectedTickers();
+
+        if (!tickers) {
+            loading.style.display = "none";
+            return;
         }
 
+        const tickerString = tickers.join(",");
+
+        await loadCorrelation(tickerString);
+        await loadFrontier(tickerString);
+        await loadBacktest(tickerString);
+
+    } finally {
+
+        loading.style.display = "none";
+
+    }
+}
         async function loadCorrelation(tickerString) {
             const period = document.getElementById("period").value;
 
@@ -763,6 +788,11 @@
     `;
 }
         function renderAllocationChart(portfolio) {
+
+    if (!portfolio || !portfolio.weights) {
+    console.error("Portfolio oder weights fehlt", portfolio);
+    return;
+}
     const labels = [];
     const values = [];
 
