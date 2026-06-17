@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from backend.financials import get_financial_data
 from backend.data_cache import get_prices
+from backend.scoring import calculate_scores
 from backend.assets import get_all_assets, get_sp500_tickers
+from backend.momentum import calculate_momentum_data, calculate_momentum_scores
 from backend.analysis import (
     calculate_returns,
     covariance_matrix,
@@ -242,3 +244,41 @@ def backtest(
         "benchmarks": benchmark_values
     }
 
+@app.get("/financials")
+def financials(
+    tickers: str = "AAPL,MSFT"
+):
+
+    ticker_list = tickers.split(",")[:10]
+
+    data = get_financial_data(ticker_list)
+
+    return {
+        "financials": data
+    }
+
+@app.get("/score")
+def score(
+    tickers: str = "AAPL,MSFT,NVDA,GOOGL,AMZN"
+):
+    ticker_list = tickers.split(",")[:10]
+
+    financial_data = get_financial_data(ticker_list)
+    scores = calculate_scores(financial_data)
+
+    return {
+        "scores": scores
+    }
+
+@app.get("/momentum")
+def momentum(
+    tickers: str = "AAPL,MSFT,NVDA,GOOGL,AMZN"
+):
+    ticker_list = tickers.split(",")[:10]
+
+    momentum_data = calculate_momentum_data(ticker_list)
+    momentum_scores = calculate_momentum_scores(momentum_data)
+
+    return {
+        "momentum": momentum_scores
+    }
