@@ -3,7 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.financials import get_financial_data
 from backend.data_cache import get_prices
 from backend.scoring import calculate_scores
+from backend.screener import run_screener
 from backend.assets import get_all_assets, get_sp500_tickers
+from backend.sector_averages import calculate_sector_averages
 from backend.momentum import calculate_momentum_data, calculate_momentum_scores
 from backend.analysis import (
     calculate_returns,
@@ -270,15 +272,44 @@ def score(
         "scores": scores
     }
 
-@app.get("/momentum")
-def momentum(
-    tickers: str = "AAPL,MSFT,NVDA,GOOGL,AMZN"
+@app.get("/screener")
+def screener(
+    tickers: str = "AAPL,MSFT,NVDA,GOOGL,AMZN",
+    max_200d: float | None = None,
+    max_200w: float | None = None,
+    max_pe: float | None = None,
+    min_roe: float | None = None,
+    min_quality: float | None = None,
+    min_value: float | None = None,
+    min_total: float | None = None,
+    sector: str | None = None
 ):
-    ticker_list = tickers.split(",")[:10]
+    ticker_list = tickers.split(",")[:50]
 
-    momentum_data = calculate_momentum_data(ticker_list)
-    momentum_scores = calculate_momentum_scores(momentum_data)
+    results = run_screener(
+        tickers=ticker_list,
+        max_200d=max_200d,
+        max_200w=max_200w,
+        max_pe=max_pe,
+        min_roe=min_roe,
+        min_quality=min_quality,
+        min_value=min_value,
+        min_total=min_total,
+        sector=sector
+    )
 
     return {
-        "momentum": momentum_scores
+        "results": results
+    }
+
+@app.get("/sector-averages")
+def sector_averages(
+    tickers: str = "AAPL,MSFT,NVDA,GOOGL,AMZN"
+):
+    ticker_list = tickers.split(",")[:100]
+
+    averages = calculate_sector_averages(ticker_list)
+
+    return {
+        "sector_averages": averages
     }

@@ -6,7 +6,8 @@
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 
     <style>
-        body {
+        
+       body{
             margin: 0;
             font-family: Arial, sans-serif;
             background: #0f172a;
@@ -213,6 +214,58 @@
             z-index: 999;
         }
 
+        #loading-overlay {
+            display: none;
+
+            position: fixed;
+            top: 0;
+            left: 0;
+
+            width: 100%;
+            height: 100%;
+
+            background: rgba(0,0,0,0.65);
+
+            z-index: 99999;
+
+            justify-content: center;
+            align-items: center;
+        }
+
+        .loader-box {
+            text-align: center;
+        }
+
+        .loader-text {
+            margin-top: 15px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .spinner {
+            width: 70px;
+            height: 70px;
+
+            border: 8px solid #334155;
+            border-top: 8px solid #2563eb;
+
+            border-radius: 50%;
+
+            animation: spin 1s linear infinite;
+
+            margin: auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
         @media (max-width: 1100px) {
             .dashboard {
                 grid-template-columns: 1fr;
@@ -229,9 +282,18 @@
             }
         }
     </style>
-</head>
 
-<body>
+    <body>
+
+    <div id="loading-overlay">
+        <div class="loader-box">
+            <div class="spinner"></div>
+            <div class="loader-text">
+                Calculating Portfolio...
+            </div>
+        </div>
+    </div>
+
     <header>
         <h1>Portfolio Tool</h1>
         <div class="muted">Markowitz Optimierung, Korrelation, Efficient Frontier und Backtest</div>
@@ -266,6 +328,41 @@
             <div id="selected-assets" class="selected-assets"></div>
 
             <br>
+
+            <br>
+
+            <h3>Screener</h3>
+
+            <label>Sector</label>
+
+            <select id="screener-sector">
+                <option value="">All Sectors</option>
+            </select>
+
+            <label>Max 200D Distance (%)</label>
+            <input id="screener-max-200d" type="number" step="0.1">
+
+            <label>Max 200W Distance (%)</label>
+            <input id="screener-max-200w" type="number" step="0.1">
+
+            <label>Max P/E</label>
+            <input id="screener-max-pe" type="number" step="0.1">
+
+            <label>Min ROE (%)</label>
+            <input id="screener-min-roe" type="number" step="0.1">
+
+            <label>Min Quality Score</label>
+            <input id="screener-min-quality" type="number" step="1">
+
+            <label>Min Value Score</label>
+            <input id="screener-min-value" type="number" step="1">
+
+            <label>Min Total Score</label>
+            <input id="screener-min-total" type="number" step="1">
+
+            <button onclick="runScreener()">Apply Screener</button>
+
+
 
             <label>Investmentbetrag (€):</label>
             <input id="capital" type="number" value="100000" min="1000" step="1000" />
@@ -340,6 +437,11 @@
             </div>
 
             <br>
+            <br>
+            <div class="card">
+                <h2>Sector Averages</h2>
+                <div id="sector-averages-table"></div>
+            </div>
 
             <div class="card">
                 <h2>Financials</h2>
@@ -365,6 +467,11 @@ All Value and Quality scores are calculated relative to the currently selected a
                     </span>
                 </h2>
                 <div id="score-table"></div>
+            </div>
+
+        <div class="card">
+            <h2>Screener Results</h2>
+            <div id="screener-table"></div>
             </div>
 
         </section>
@@ -399,6 +506,7 @@ All Value and Quality scores are calculated relative to the currently selected a
 
         function populateSectorFilter() {
             const sectorFilter = document.getElementById("sector-filter");
+            const screenerSector = document.getElementById("screener-sector");
             sectorFilter.innerHTML = `<option value="all">Alle</option>`;
 
             const sectors = [...new Set(
@@ -408,13 +516,25 @@ All Value and Quality scores are calculated relative to the currently selected a
             )].sort();
 
             sectors.forEach(sector => {
-                const option = document.createElement("option");
-                option.value = sector;
-                option.innerText = sector;
-                sectorFilter.appendChild(option);
+
+                const option1 =
+                    document.createElement("option");
+
+                option1.value = sector;
+                option1.innerText = sector;
+
+                sectorFilter.appendChild(option1);
+
+                const option2 =
+                    document.createElement("option");
+
+                option2.value = sector;
+                option2.innerText = sector;
+
+                screenerSector.appendChild(option2);
+
             });
         }
-
         function renderAssetList(assets) {
             const assetList = document.getElementById("asset-list");
             assetList.innerHTML = "";
@@ -527,8 +647,9 @@ All Value and Quality scores are calculated relative to the currently selected a
         }
 
         async function runAnalysis() {
-            const loading = document.getElementById("loading");
-            loading.style.display = "block";
+            document.getElementById(
+                "loading-overlay"
+            ).style.display = "flex";
 
             try {
                 const tickers = getSelectedTickers();
@@ -543,13 +664,16 @@ All Value and Quality scores are calculated relative to the currently selected a
                 await loadFrontier(tickerString);
                 await loadBacktest(tickerString);
                 await loadFinancials(tickerString);
+                await loadSectorAverages(tickerString);
                 await loadScores(tickerString);
 
             } catch (error) {
                 console.error("Fehler bei der Berechnung:", error);
                 alert("Fehler bei der Berechnung. Bitte Backend oder Konsole prüfen.");
             } finally {
-                loading.style.display = "none";
+                document.getElementById(
+                    "loading-overlay"
+                ).style.display = "none";
             }
         }
 
@@ -741,6 +865,58 @@ All Value and Quality scores are calculated relative to the currently selected a
 
             renderFinancialsTable(data.financials);
         }
+
+        async function loadSectorAverages(tickerString) {
+            const response = await fetch(
+                `http://127.0.0.1:8000/sector-averages?tickers=${tickerString}`
+            );
+
+            const data = await response.json();
+
+            renderSectorAveragesTable(data.sector_averages);
+}
+
+
+        function renderSectorAveragesTable(data) {
+
+                let html = `
+                    <table>
+                        <tr>
+                            <th>Sector</th>
+                            <th>Assets</th>
+                            <th>P/E</th>
+                            <th>P/B</th>
+                            <th>P/S</th>
+                            <th>ROE</th>
+                            <th>ROC</th>
+                            <th>Op Margin</th>
+                            <th>OCF Margin</th>
+                        </tr>
+                `;
+
+                data.forEach(item => {
+
+                    html += `
+                        <tr>
+                            <td>${item.sector}</td>
+                            <td>${item.count}</td>
+                            <td>${item.pe ?? "-"}</td>
+                            <td>${item.pb ?? "-"}</td>
+                            <td>${item.ps ?? "-"}</td>
+                            <td>${item.roe ?? "-"}%</td>
+                            <td>${item.roc ?? "-"}%</td>
+                            <td>${item.operating_margin ?? "-"}%</td>
+                            <td>${item.ocf_margin ?? "-"}%</td>
+                        </tr>
+                    `;
+                });
+
+                html += "</table>";
+
+                document.getElementById(
+                    "sector-averages-table"
+                ).innerHTML = html;
+            }
 
         async function loadScores(tickerString) {
             const response = await fetch(
@@ -949,51 +1125,170 @@ All Value and Quality scores are calculated relative to the currently selected a
             return "#ef4444";
         }
 
-        function renderScoreTable(scores) {
-            let html = `
-                <table>
-                    <tr>
-                        <th>Rank</th>
-                        <th>Ticker</th>
-                        <th>Value</th>
-                        <th>Quality</th>
-                        <th>200D</th>
-                        <th>200W</th>
-                        <th>Trend</th>
-                        <th>Total</th>
-                    </tr>
-            `;
+   function scoreColor(value) {
+    if (value == null) {
+        return "#e5e7eb";
+    }
 
-            scores.forEach((item, index) => {
-                html += `
-                    <tr>
-                        <td>${index + 1}</td>
-                        <td>${item.ticker}</td>
-                        <td>${item.value_score ?? "-"}</td>
-                        <td>${item.quality_score ?? "-"}</td>
+    if (value >= 80) {
+        return "#22c55e";
+    }
 
-                        <td style="color: ${distanceColor(item.distance_200d)};">
-                            ${formatDistance(item.distance_200d)}
-                        </td>
+    if (value >= 60) {
+        return "#84cc16";
+    }
 
-                        <td style="color: ${distanceColor(item.distance_200w)};">
-                            ${formatDistance(item.distance_200w)}
-                        </td>
+    if (value >= 40) {
+        return "#eab308";
+    }
 
-                        <td>${item.trend_score ?? "-"}</td>
+    if (value >= 20) {
+        return "#f97316";
+    }
 
-                        <td>
-                            <strong>${item.total_score ?? "-"}</strong>
-                        </td>
-                    </tr>
-                `;
-            });
+    return "#ef4444";
+}
 
-            html += "</table>";
+function renderScoreTable(scores) {
+    let html = `
+        <table>
+            <tr>
+                <th>Rank</th>
+                <th>Ticker</th>
+                <th>Value</th>
+                <th>Quality</th>
+                <th>200D</th>
+                <th>200W</th>
+                <th>Trend</th>
+                <th>Total</th>
+            </tr>
+    `;
 
-            document.getElementById("score-table").innerHTML = html;
-        }
-           
+    scores.forEach((item, index) => {
+        html += `
+            <tr>
+                <td>${index + 1}</td>
+                <td>${item.ticker}</td>
+
+                <td style="color: ${scoreColor(item.value_score)};">
+                    ${item.value_score ?? "-"}
+                </td>
+
+                <td style="color: ${scoreColor(item.quality_score)};">
+                    ${item.quality_score ?? "-"}
+                </td>
+
+                <td style="color: ${distanceColor(item.distance_200d)};">
+                    ${formatDistance(item.distance_200d)}
+                </td>
+
+                <td style="color: ${distanceColor(item.distance_200w)};">
+                    ${formatDistance(item.distance_200w)}
+                </td>
+
+                <td style="color: ${scoreColor(item.trend_score)};">
+                    ${item.trend_score ?? "-"}
+                </td>
+
+                <td style="color: ${scoreColor(item.total_score)};">
+                    <strong>${item.total_score ?? "-"}</strong>
+                </td>
+            </tr>
+        `;
+    });
+
+    html += "</table>";
+
+    document.getElementById("score-table").innerHTML = html;
+}         
+
+function getNumberValue(id) {
+    const value = document.getElementById(id).value;
+
+    if (value === "") {
+        return null;
+    }
+
+    return Number(value);
+}
+
+async function runScreener() {
+    document.getElementById(
+        "loading-overlay"
+    ).style.display = "flex";
+    const tickers = allAssets.map(asset => asset.ticker).slice(0, 100);
+    const params = new URLSearchParams();
+
+    params.append("tickers", tickers.join(","));
+
+    const max200d = getNumberValue("screener-max-200d");
+    const max200w = getNumberValue("screener-max-200w");
+    const maxPe = getNumberValue("screener-max-pe");
+    const minRoe = getNumberValue("screener-min-roe");
+    const minQuality = getNumberValue("screener-min-quality");
+    const minValue = getNumberValue("screener-min-value");
+    const minTotal = getNumberValue("screener-min-total");
+    const sector = document.getElementById("screener-sector").value;
+
+    if (max200d !== null) params.append("max_200d", max200d);
+    if (max200w !== null) params.append("max_200w", max200w);
+    if (maxPe !== null) params.append("max_pe", maxPe);
+    if (minRoe !== null) params.append("min_roe", minRoe);
+    if (minQuality !== null) params.append("min_quality", minQuality);
+    if (minValue !== null) params.append("min_value", minValue);
+    if (minTotal !== null) params.append("min_total", minTotal);
+    if (sector !== "") params.append("sector", sector);
+
+    const response = await fetch(
+        `http://127.0.0.1:8000/screener?${params.toString()}`
+    );
+
+    const data = await response.json();
+
+    renderScreenerTable(data.results);
+
+    document.getElementById(
+        "loading-overlay"
+    ).style.display = "none";
+}
+
+function renderScreenerTable(results) {
+    let html = `
+        <table>
+            <tr>
+                <th>Ticker</th>
+                <th>P/E</th>
+                <th>ROE</th>
+                <th>200D</th>
+                <th>200W</th>
+                <th>Value</th>
+                <th>Quality</th>
+                <th>Trend</th>
+                <th>Total</th>
+            </tr>
+    `;
+
+    results.forEach(item => {
+        html += `
+            <tr>
+                <td>${item.ticker}</td>
+                <td>${item.pe ?? "-"}</td>
+                <td>${item.roe ?? "-"}%</td>
+                <td>${formatDistance(item.distance_200d)}</td>
+                <td>${formatDistance(item.distance_200w)}</td>
+                <td>${item.value_score ?? "-"}</td>
+                <td>${item.quality_score ?? "-"}</td>
+                <td>${item.trend_score ?? "-"}</td>
+                <td><strong>${item.total_score ?? "-"}</strong></td>
+            </tr>
+        `;
+    });
+
+    html += "</table>";
+
+    document.getElementById("screener-table").innerHTML = html;
+}
+
 
         loadAssets().then(() => {
             runAnalysis();

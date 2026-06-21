@@ -1,34 +1,53 @@
-import yfinance as yf
-import pandas as pd
 import os
+import pandas as pd
+import yfinance as yf
+
 
 CACHE_DIR = "data_cache"
 
-os.makedirs(CACHE_DIR, exist_ok=True)
-
 
 def load_ticker(ticker):
-    path = f"{CACHE_DIR}/{ticker}.csv"
+    file_path = os.path.join(CACHE_DIR, f"{ticker}.csv")
 
-    if os.path.exists(path):
-        df = pd.read_csv(path, index_col=0, parse_dates=True)
-        return df[ticker]
+    if os.path.exists(file_path):
+        df = pd.read_csv(file_path, index_col=0, parse_dates=True)
 
-    df = yf.download(
+        if "Close" in df.columns:
+            series = df["Close"].copy()
+            series.name = ticker
+            return series
+
+        if ticker in df.columns:
+            series = df[ticker].copy()
+            series.name = ticker
+            return series
+
+        if len(df.columns) == 1:
+            series = df.iloc[:, 0].copy()
+            series.name = ticker
+            return series
+
+        raise ValueError(f"Keine passende Kursspalte für {ticker}")
+
+    data = yf.download(
         ticker,
-        period="5y",
-        interval="1d",
+        period="10y",
         auto_adjust=True,
         progress=False
     )
 
-    if df.empty:
+    if data.empty:
         raise ValueError(f"Keine Daten für {ticker}")
 
-    close = df["Close"]
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
+
+    close = data["Close"].copy()
     close.name = ticker
 
-    close.to_csv(path, header=True)
+    os.makedirs(CACHE_DIR, exist_ok=True)
+
+    close.to_frame("Close").to_csv(file_path)
 
     return close
 
@@ -38,8 +57,9 @@ def get_prices(tickers):
 
     for ticker in tickers:
         try:
-            s = load_ticker(ticker)
-            series_list.append(s)
+            series = load_ticker(ticker)
+            series_list.append(series)
+
         except Exception as e:
             print(f"Fehler bei {ticker}: {e}")
 
@@ -47,4 +67,6 @@ def get_prices(tickers):
         raise ValueError("Keine Kursdaten geladen")
 
     prices = pd.concat(series_list, axis=1)
-    return prices.dropna()
+    prices = prices.dropna()
+
+    return prices
