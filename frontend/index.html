@@ -1216,7 +1216,7 @@ async function runScreener() {
     document.getElementById(
         "loading-overlay"
     ).style.display = "flex";
-    const tickers = allAssets.map(asset => asset.ticker).slice(0, 100);
+    const tickers = allAssets.map(asset => asset.ticker);
     const params = new URLSearchParams();
 
     params.append("tickers", tickers.join(","));
