@@ -6,3 +6,6 @@ scipy
 yfinance
 requests
 lxml
+beautifulsoup4
+html5lib
+cvxpy
