@@ -282,6 +282,7 @@
             }
         }
     </style>
+    </head>
 
     <body>
 
@@ -483,6 +484,8 @@ All Value and Quality scores are calculated relative to the currently selected a
     </footer>
 
     <script>
+
+        const API = "https://portfolio-theory.onrender.com";
         let allAssets = [];
 
         let selectedAssets = [
@@ -494,7 +497,7 @@ All Value and Quality scores are calculated relative to the currently selected a
         ];
 
         async function loadAssets() {
-            const response = await fetch("http://127.0.0.1:8000/assets");
+            const response = await fetch(`${API}/assets`);
             const data = await response.json();
 
             allAssets = data.assets;
@@ -681,7 +684,7 @@ All Value and Quality scores are calculated relative to the currently selected a
             const period = document.getElementById("period").value;
 
             const response = await fetch(
-                `http://127.0.0.1:8000/correlation?tickers=${tickerString}&period=${period}`
+                `${API}/correlation?tickers=${tickerString}&period=${period}`
             );
 
             const data = await response.json();
@@ -720,7 +723,7 @@ All Value and Quality scores are calculated relative to the currently selected a
             const maxWeightDecimal = maxWeightPercent / 100;
 
             const response = await fetch(
-                `http://127.0.0.1:8000/efficient-frontier?tickers=${tickerString}&max_weight=${maxWeightDecimal}&period=${period}`
+                `${API}/efficient-frontier?tickers=${tickerString}&max_weight=${maxWeightDecimal}&period=${period}`
             );
 
             const data = await response.json();
@@ -782,7 +785,7 @@ All Value and Quality scores are calculated relative to the currently selected a
             const maxWeightDecimal = maxWeightPercent / 100;
 
             const response = await fetch(
-                `http://127.0.0.1:8000/backtest?tickers=${tickerString}&max_weight=${maxWeightDecimal}&capital=${capital}&period=${period}`
+                `${API}/backtest?tickers=${tickerString}&max_weight=${maxWeightDecimal}&capital=${capital}&period=${period}`
             );
 
             const data = await response.json();
@@ -858,7 +861,7 @@ All Value and Quality scores are calculated relative to the currently selected a
 
         async function loadFinancials(tickerString) {
             const response = await fetch(
-                `http://127.0.0.1:8000/financials?tickers=${tickerString}`
+                `${API}/financials?tickers=${tickerString}`
             );
 
             const data = await response.json();
@@ -868,7 +871,7 @@ All Value and Quality scores are calculated relative to the currently selected a
 
         async function loadSectorAverages(tickerString) {
             const response = await fetch(
-                `http://127.0.0.1:8000/sector-averages?tickers=${tickerString}`
+                `${API}/sector-averages?tickers=${tickerString}`
             );
 
             const data = await response.json();
@@ -920,7 +923,7 @@ All Value and Quality scores are calculated relative to the currently selected a
 
         async function loadScores(tickerString) {
             const response = await fetch(
-                `http://127.0.0.1:8000/score?tickers=${tickerString}`
+                `${API}/score?tickers=${tickerString}`
             );
 
             const data = await response.json();
@@ -1240,7 +1243,7 @@ async function runScreener() {
     if (sector !== "") params.append("sector", sector);
 
     const response = await fetch(
-        `http://127.0.0.1:8000/screener?${params.toString()}`
+        `${API}/screener?${params.toString()}`
     );
 
     const data = await response.json();
